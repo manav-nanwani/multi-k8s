@@ -1,45 +1,63 @@
-name: Deploy MultiDocker
+name: Deploy MultiK8s
 on:
   push:
     branches:
       - main
 
+env:
+  SHA: $(git rev-parse HEAD)
+
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out code
-        uses: actions/checkout@v2
-      - name: Install kubectl
-        uses: azure/setup-kubectl@v1
+      - uses: actions/checkout@v3
+
+      - name: Test
+        run: |-
+          docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
+          docker build -t manavnanwani/react-test -f ./client/Dockerfile.dev ./client
+          docker run -e CI=true manavnanwani/react-test npm test
+
+      - name: Set Service Key
+        uses: "google-github-actions/auth@v0"
         with:
-          version: "v1.24.6"
-        id: install
-      - run: docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
-      - run: docker build -t manavnanwani/react-test -f ./client/Dockerfile.dev ./client
-      - run: docker run -e CI=true manavnanwani/react-test npm test
+          credentials_json: "${{ secrets.GKE_SA_KEY }}"
 
-      - run: docker build -t manavnanwani/multi-client-10-14 ./client
-      - run: docker build -t manavnanwani/multi-nginx-10-14 ./nginx
-      - run: docker build -t manavnanwani/multi-server-10-14 ./server
-      - run: docker build -t manavnanwani/multi-worker-10-14 ./worker
-
-      - run: docker push manavnanwani/multi-client-10-14
-      - run: docker push manavnanwani/multi-nginx-10-14
-      - run: docker push manavnanwani/multi-server-10-14
-      - run: docker push manavnanwani/multi-worker-10-14
-
-      - name: Generate deployment package
-        run: zip -r deploy.zip . -x '*.git*'
-
-      - name: Deploy to EB
-        uses: manavnanwanidev/beanstalk-deploy@v18
+      - name: Set Project
+        uses: google-github-actions/setup-gcloud@v0
         with:
-          aws_access_key: ${{ secrets.AWS_ACCESS_KEY }}
-          aws_secret_key: ${{ secrets.AWS_SECRET_KEY }}
-          application_name: multi-gh
-          environment_name: Multigh-env
-          existing_bucket_name: elasticbeanstalk-us-east-1-923445559289
-          region: us-east-1
-          version_label: ${{ github.sha }}
-          deployment_package: deploy.zip
+          project_id: multi-338920
+
+      - name: Auth
+        run: |-
+          gcloud --quiet auth configure-docker
+
+      - name: Get Credentials
+        uses: google-github-actions/get-gke-credentials@v0
+        with:
+          cluster_name: multi-cluster
+          location: us-central1-c
+
+      - name: Build
+        run: |-
+          docker build -t manavnanwani/multi-client-k8s-gh:latest -t manavnanwani/multi-client-k8s-gh:${{ env.SHA }} -f ./client/Dockerfile ./client
+          docker build -t manavnanwani/multi-server-k8s-pgfix-gh:latest -t manavnanwani/multi-server-k8s-pgfix-gh:${{ env.SHA }} -f ./server/Dockerfile ./server
+          docker build -t manavnanwani/multi-worker-k8s-gh:latest -t manavnanwani/multi-worker-k8s-gh:${{ env.SHA }} -f ./worker/Dockerfile ./worker
+
+      - name: Push
+        run: |-
+          docker push manavnanwani/multi-client-k8s-gh:latest
+          docker push manavnanwani/multi-server-k8s-pgfix-gh:latest
+          docker push manavnanwani/multi-worker-k8s-gh:latest
+
+          docker push manavnanwani/multi-client-k8s-gh:${{ env.SHA }}
+          docker push manavnanwani/multi-server-k8s-pgfix-gh:${{ env.SHA }}
+          docker push manavnanwani/multi-worker-k8s-gh:${{ env.SHA }}
+
+      - name: Apply
+        run: |-
+          kubectl apply -f k8s
+          kubectl set image deployments/server-deployment server=manavnanwani/multi-server-k8s-pgfix-gh:${{ env.SHA }}
+          kubectl set image deployments/client-deployment client=manavnanwani/multi-client-k8s-gh:${{ env.SHA }}
+          kubectl set image deployments/worker-deployment worker=manavnanwani/multi-worker-k8s-gh:${{ env.SHA }}
