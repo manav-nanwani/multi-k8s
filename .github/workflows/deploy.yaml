@@ -42,23 +42,23 @@ jobs:
 
       - name: Build
         run: |-
-          docker build -t cygnetops/multi-client-k8s-gh:latest -t cygnetops/multi-client-k8s-gh:${{ env.SHA }} -f ./client/Dockerfile ./client
-          docker build -t cygnetops/multi-server-k8s-pgfix-gh:latest -t cygnetops/multi-server-k8s-pgfix-gh:${{ env.SHA }} -f ./server/Dockerfile ./server
-          docker build -t cygnetops/multi-worker-k8s-gh:latest -t cygnetops/multi-worker-k8s-gh:${{ env.SHA }} -f ./worker/Dockerfile ./worker
+          docker build -t manavnanwani/multi-client:latest -t manavnanwani/multi-client:${{ env.SHA }} -f ./client/Dockerfile ./client
+          docker build -t manavnanwani/multi-server:latest -t manavnanwani/multi-server:${{ env.SHA }} -f ./server/Dockerfile ./server
+          docker build -t manavnanwani/multi-worker:latest -t manavnanwani/multi-worker:${{ env.SHA }} -f ./worker/Dockerfile ./worker
 
       - name: Push
         run: |-
-          docker push cygnetops/multi-client-k8s-gh:latest
-          docker push cygnetops/multi-server-k8s-pgfix-gh:latest
-          docker push cygnetops/multi-worker-k8s-gh:latest
+          docker push manavnanwani/multi-client:latest
+          docker push manavnanwani/multi-server:latest
+          docker push manavnanwani/multi-worker:latest
 
-          docker push cygnetops/multi-client-k8s-gh:${{ env.SHA }}
-          docker push cygnetops/multi-server-k8s-pgfix-gh:${{ env.SHA }}
-          docker push cygnetops/multi-worker-k8s-gh:${{ env.SHA }}
+          docker push manavnanwani/multi-client:${{ env.SHA }}
+          docker push manavnanwani/multi-server:${{ env.SHA }}
+          docker push manavnanwani/multi-worker:${{ env.SHA }}
 
       - name: Apply
         run: |-
           kubectl apply -f k8s
-          kubectl set image deployments/server-deployment server=cygnetops/multi-server-k8s-pgfix-gh:${{ env.SHA }}
-          kubectl set image deployments/client-deployment client=cygnetops/multi-client-k8s-gh:${{ env.SHA }}
-          kubectl set image deployments/worker-deployment worker=cygnetops/multi-worker-k8s-gh:${{ env.SHA }}
+          kubectl set image deployments/server-deployment server=manavnanwani/multi-server:${{ env.SHA }}
+          kubectl set image deployments/client-deployment client=manavnanwani/multi-client:${{ env.SHA }}
+          kubectl set image deployments/worker-deployment worker=manavnanwani/multi-worker:${{ env.SHA }}
